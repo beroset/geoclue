@@ -996,6 +996,8 @@ gc_master_client_set_sender (GcMasterClient *client,
 {
 	GcMasterClientPrivate *priv = GET_PRIVATE (client);
 	
+	g_return_if_fail (GC_IS_MASTER_CLIENT (client));
+	
 	g_free (priv->sender);
 	priv->sender = g_strdup (sender);
 }
@@ -1013,6 +1015,8 @@ gc_master_client_set_object_path (GcMasterClient *client,
                                    const char     *object_path)
 {
 	GcMasterClientPrivate *priv = GET_PRIVATE (client);
+	
+	g_return_if_fail (GC_IS_MASTER_CLIENT (client));
 	
 	g_free (priv->object_path);
 	priv->object_path = g_strdup (object_path);

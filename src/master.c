@@ -142,6 +142,8 @@ name_owner_changed_filter (DBusConnection *connection,
 			object_path = gc_master_client_get_object_path (client);
 			if (object_path && master_connection) {
 				dbus_g_connection_unregister_g_object (master_connection, G_OBJECT (client));
+			} else if (object_path && !master_connection) {
+				g_warning ("Cannot unregister client %s: master_connection is NULL", name);
 			}
 			
 			/* Release our reference. This will destroy the object,
