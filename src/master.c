@@ -76,13 +76,6 @@ add_client (GcMasterClient *client)
 }
 
 static void
-remove_client (GcMasterClient *client)
-{
-	clients = g_list_remove (clients, client);
-	g_object_weak_unref (G_OBJECT (client), client_destroyed, NULL);
-}
-
-static void
 client_destroyed (gpointer data, GObject *old_client)
 {
 	/* The weak ref callback - client is being finalized */
@@ -151,8 +144,9 @@ name_owner_changed_filter (DBusConnection *connection,
 				dbus_g_connection_unregister_g_object (master_connection, G_OBJECT (client));
 			}
 			
-			/* The unregister will release D-Bus's reference, which may trigger
-			 * the weak ref callback (client_destroyed) to clean up. */
+			/* Release our reference. This will destroy the object,
+			 * which will trigger our weak ref callback (client_destroyed) to clean up. */
+			g_object_unref (client);
 		}
 	}
 	
@@ -182,7 +176,7 @@ gc_iface_master_create (GcMaster              *master,
 	dbus_g_connection_register_g_object (master->connection, path,
 					     G_OBJECT (client));
 	
-	/* Track the client */
+	/* Track the client with a weak reference */
 	add_client (client);
 	
 	/* Return the object path */
