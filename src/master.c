@@ -27,6 +27,7 @@
 
 #include <string.h>
 #include <dbus/dbus.h>
+#include <dbus/dbus-glib-lowlevel.h>
 
 #include "main.h"
 #include "master.h"

@@ -33,6 +33,7 @@
 
 #define GC_TYPE_MASTER_CLIENT (gc_master_client_get_type ())
 #define GC_MASTER_CLIENT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GC_TYPE_MASTER_CLIENT, GcMasterClient))
+#define GC_IS_MASTER_CLIENT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GC_TYPE_MASTER_CLIENT))
 
 typedef struct {
 	GObject parent;
