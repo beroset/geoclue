@@ -33,6 +33,7 @@
 
 #define GC_TYPE_MASTER_CLIENT (gc_master_client_get_type ())
 #define GC_MASTER_CLIENT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GC_TYPE_MASTER_CLIENT, GcMasterClient))
+#define GC_IS_MASTER_CLIENT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GC_TYPE_MASTER_CLIENT))
 
 typedef struct {
 	GObject parent;
@@ -43,5 +44,13 @@ typedef struct {
 } GcMasterClientClass;
 
 GType gc_master_client_get_type (void);
+
+void gc_master_client_set_sender (GcMasterClient *client, 
+                                  const char     *sender);
+const char *gc_master_client_get_sender (GcMasterClient *client);
+
+void gc_master_client_set_object_path (GcMasterClient *client,
+                                       const char     *object_path);
+const char *gc_master_client_get_object_path (GcMasterClient *client);
 
 #endif

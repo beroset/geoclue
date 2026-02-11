@@ -5,6 +5,7 @@
 	<interface name="org.freedesktop.Geoclue.Master">
 		<method name="Create">
 			<arg type="o" name="path" direction="out" />
+			<annotation name="org.freedesktop.DBus.GLib.Async" value=""/>
 		</method>
 	</interface>
 </node>
