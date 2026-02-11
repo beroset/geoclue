@@ -56,6 +56,7 @@ G_DEFINE_TYPE (GcMaster, gc_master, G_TYPE_OBJECT);
 
 static GList *providers = NULL;
 static GList *clients = NULL;  /* List of active GcMasterClient objects */
+static DBusGConnection *master_connection = NULL;  /* Global connection for cleanup */
 
 static void gc_iface_master_create (GcMaster              *master,
 				    DBusGMethodInvocation *context);
@@ -79,17 +80,6 @@ remove_client (GcMasterClient *client)
 {
 	clients = g_list_remove (clients, client);
 	g_object_weak_unref (G_OBJECT (client), client_destroyed, NULL);
-	
-	/* If this was the last client, unref all providers to save power */
-	if (clients == NULL && providers != NULL) {
-		GList *l;
-		for (l = providers; l; l = l->next) {
-			GcMasterProvider *provider = l->data;
-			g_object_unref (provider);
-		}
-		g_list_free (providers);
-		providers = NULL;
-	}
 }
 
 static void
@@ -151,9 +141,18 @@ name_owner_changed_filter (DBusConnection *connection,
 		GcMasterClient *client = find_client_by_sender (name);
 		
 		if (client) {
+			const char *object_path;
+			
 			g_print ("Client %s disconnected, cleaning up\n", name);
-			remove_client (client);
-			g_object_unref (client);
+			
+			/* Unregister the client object from D-Bus */
+			object_path = gc_master_client_get_object_path (client);
+			if (object_path && master_connection) {
+				dbus_g_connection_unregister_g_object (master_connection, G_OBJECT (client));
+			}
+			
+			/* The unregister will release D-Bus's reference, which may trigger
+			 * the weak ref callback (client_destroyed) to clean up. */
 		}
 	}
 	
@@ -173,9 +172,10 @@ gc_iface_master_create (GcMaster              *master,
 	path = g_strdup_printf ("%s%d", GEOCLUE_MASTER_PATH, serial++);
 	client = g_object_new (GC_TYPE_MASTER_CLIENT, NULL);
 	
-	/* Get and store the sender's unique name */
+	/* Get and store the sender's unique name and object path */
 	sender = dbus_g_method_get_sender (context);
 	gc_master_client_set_sender (client, sender);
+	gc_master_client_set_object_path (client, path);
 	g_free (sender);
 	
 	/* Register the client object on D-Bus */
@@ -285,6 +285,9 @@ gc_master_init (GcMaster *master)
 		g_error_free (error);
 		return;
 	}
+	
+	/* Store connection globally for client cleanup */
+	master_connection = master->connection;
 	
 	/* Add filter for NameOwnerChanged signals to detect client disconnections */
 	dbus_conn = dbus_g_connection_get_connection (master->connection);

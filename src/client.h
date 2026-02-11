@@ -48,4 +48,8 @@ void gc_master_client_set_sender (GcMasterClient *client,
                                   const char     *sender);
 const char *gc_master_client_get_sender (GcMasterClient *client);
 
+void gc_master_client_set_object_path (GcMasterClient *client,
+                                       const char     *object_path);
+const char *gc_master_client_get_object_path (GcMasterClient *client);
+
 #endif

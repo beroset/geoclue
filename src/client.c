@@ -64,6 +64,7 @@ typedef struct _GcMasterClientPrivate {
 	guint32 signals[LAST_PRIVATE_SIGNAL];
 
 	gchar *sender;  /* D-Bus unique name of the client */
+	gchar *object_path;  /* D-Bus object path */
 
 	GeoclueAccuracyLevel min_accuracy;
 	int min_time;
@@ -799,9 +800,11 @@ finalize (GObject *object)
 	GcMasterClient *client = GC_MASTER_CLIENT (object);
 	GcMasterClientPrivate *priv = GET_PRIVATE (object);
 	
-	/* Free the sender */
+	/* Free the sender and object_path */
 	g_free (priv->sender);
 	priv->sender = NULL;
+	g_free (priv->object_path);
+	priv->object_path = NULL;
 	
 	/* do not free contents of the lists, Master takes care of them */
 	if (priv->position_providers) {
@@ -1003,6 +1006,24 @@ gc_master_client_get_sender (GcMasterClient *client)
 	GcMasterClientPrivate *priv = GET_PRIVATE (client);
 	
 	return priv->sender;
+}
+
+void
+gc_master_client_set_object_path (GcMasterClient *client,
+                                   const char     *object_path)
+{
+	GcMasterClientPrivate *priv = GET_PRIVATE (client);
+	
+	g_free (priv->object_path);
+	priv->object_path = g_strdup (object_path);
+}
+
+const char *
+gc_master_client_get_object_path (GcMasterClient *client)
+{
+	GcMasterClientPrivate *priv = GET_PRIVATE (client);
+	
+	return priv->object_path;
 }
 
 static void
