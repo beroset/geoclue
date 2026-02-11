@@ -63,6 +63,8 @@ enum {
 typedef struct _GcMasterClientPrivate {
 	guint32 signals[LAST_PRIVATE_SIGNAL];
 
+	gchar *sender;  /* D-Bus unique name of the client */
+
 	GeoclueAccuracyLevel min_accuracy;
 	int min_time;
 	gboolean require_updates;
@@ -797,6 +799,10 @@ finalize (GObject *object)
 	GcMasterClient *client = GC_MASTER_CLIENT (object);
 	GcMasterClientPrivate *priv = GET_PRIVATE (object);
 	
+	/* Free the sender */
+	g_free (priv->sender);
+	priv->sender = NULL;
+	
 	/* do not free contents of the lists, Master takes care of them */
 	if (priv->position_providers) {
 		gc_master_client_unsubscribe_providers (client, priv->position_providers, GC_IFACE_ALL);
@@ -979,6 +985,24 @@ gc_master_client_geoclue_init (GcIfaceGeoclueClass *iface)
 	iface->set_options = set_options;
 	iface->add_reference = add_reference;
 	iface->remove_reference = remove_reference;
+}
+
+void
+gc_master_client_set_sender (GcMasterClient *client,
+                              const char     *sender)
+{
+	GcMasterClientPrivate *priv = GET_PRIVATE (client);
+	
+	g_free (priv->sender);
+	priv->sender = g_strdup (sender);
+}
+
+const char *
+gc_master_client_get_sender (GcMasterClient *client)
+{
+	GcMasterClientPrivate *priv = GET_PRIVATE (client);
+	
+	return priv->sender;
 }
 
 static void

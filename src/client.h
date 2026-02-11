@@ -44,4 +44,8 @@ typedef struct {
 
 GType gc_master_client_get_type (void);
 
+void gc_master_client_set_sender (GcMasterClient *client, 
+                                  const char     *sender);
+const char *gc_master_client_get_sender (GcMasterClient *client);
+
 #endif
