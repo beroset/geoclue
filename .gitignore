@@ -1,0 +1,41 @@
+# Build artifacts (autotools)
+*.o
+*.lo
+*.la
+*.a
+*.so
+*.so.*
+.libs/
+.deps/
+config.h
+config.log
+config.status
+libtool
+stamp-h1
+
+# Generated Makefiles (only Makefile.am / Makefile.in belong in source control)
+Makefile
+
+# Compiled binaries
+geoclue/geoclue-master
+providers/example/geoclue-example
+providers/geonames/geoclue-geonames
+providers/gpsd/geoclue-gpsd
+providers/gsmloc/geoclue-gsmloc
+providers/gypsy/geoclue-gypsy
+providers/hostip/geoclue-hostip
+providers/localnet/geoclue-localnet
+providers/manual/geoclue-manual
+providers/nominatim/geoclue-nominatim
+providers/plazes/geoclue-plazes
+providers/skyhook/geoclue-skyhook
+providers/yahoo/geoclue-yahoo
+src/geoclue-master
+
+# Test binaries
+test/test-geoclue
+
+# CodeQL and other review/analysis artifacts
+.codeql/
+*.sarif
+codeql-results/
