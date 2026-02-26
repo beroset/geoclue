@@ -1,0 +1,30 @@
+# Build artifacts
+*.o
+*.lo
+*.la
+.libs
+.deps
+Makefile
+config.h
+config.status
+stamp-*
+*-glue.h
+
+# Autotools
+autom4te.cache/
+config.log
+config.h.in~
+configure~
+compile
+aclocal.m4
+config.guess
+config.h.in
+config.sub
+ltmain.sh
+install-sh
+
+# CodeQL
+_codeql_detected_source_root
+
+# Test files
+/tmp/

@@ -26,6 +26,8 @@
 #include <config.h>
 
 #include <string.h>
+#include <dbus/dbus.h>
+#include <dbus/dbus-glib-lowlevel.h>
 
 #include "main.h"
 #include "master.h"
@@ -54,32 +56,135 @@ static guint32 signals[LAST_SIGNAL] = {0, };
 G_DEFINE_TYPE (GcMaster, gc_master, G_TYPE_OBJECT);
 
 static GList *providers = NULL;
+static GList *clients = NULL;  /* List of active GcMasterClient objects */
+static DBusGConnection *master_connection = NULL;  /* Global connection for cleanup */
 
-static gboolean gc_iface_master_create (GcMaster    *master,
-					const char **object_path,
-					GError     **error);
+static void gc_iface_master_create (GcMaster              *master,
+				    DBusGMethodInvocation *context);
+
+static void client_destroyed (gpointer data, GObject *old_client);
+static DBusHandlerResult name_owner_changed_filter (DBusConnection *connection,
+                                                     DBusMessage    *message,
+                                                     void           *user_data);
 
 #include "gc-iface-master-glue.h"
 
+static void
+add_client (GcMasterClient *client)
+{
+	clients = g_list_prepend (clients, client);
+	g_object_weak_ref (G_OBJECT (client), client_destroyed, NULL);
+}
+
+static void
+client_destroyed (gpointer data, GObject *old_client)
+{
+	/* The weak ref callback - client is being finalized */
+	clients = g_list_remove (clients, old_client);
+	
+	/* If this was the last client, unref all providers to save power */
+	if (clients == NULL && providers != NULL) {
+		GList *l;
+		for (l = providers; l; l = l->next) {
+			GcMasterProvider *provider = l->data;
+			g_object_unref (provider);
+		}
+		g_list_free (providers);
+		providers = NULL;
+	}
+}
+
+static GcMasterClient *
+find_client_by_sender (const char *sender)
+{
+	GList *l;
+	
+	for (l = clients; l; l = l->next) {
+		GcMasterClient *client = l->data;
+		const char *client_sender = gc_master_client_get_sender (client);
+		
+		if (client_sender && strcmp (client_sender, sender) == 0) {
+			return client;
+		}
+	}
+	
+	return NULL;
+}
+
+static DBusHandlerResult
+name_owner_changed_filter (DBusConnection *connection,
+                           DBusMessage    *message,
+                           void           *user_data)
+{
+	const char *name, *old_owner, *new_owner;
+	
+	if (!dbus_message_is_signal (message, DBUS_INTERFACE_DBUS, "NameOwnerChanged")) {
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
+	
+	if (!dbus_message_get_args (message, NULL,
+	                            DBUS_TYPE_STRING, &name,
+	                            DBUS_TYPE_STRING, &old_owner,
+	                            DBUS_TYPE_STRING, &new_owner,
+	                            DBUS_TYPE_INVALID)) {
+		return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+	}
+	
+	/* Check if a client disconnected (old_owner exists, new_owner is empty) */
+	if (old_owner && *old_owner && (!new_owner || !*new_owner)) {
+		GcMasterClient *client = find_client_by_sender (name);
+		
+		if (client) {
+			const char *object_path;
+			
+			g_print ("Client %s disconnected, cleaning up\n", name);
+			
+			/* Unregister the client object from D-Bus */
+			object_path = gc_master_client_get_object_path (client);
+			if (object_path && master_connection) {
+				dbus_g_connection_unregister_g_object (master_connection, G_OBJECT (client));
+			} else if (object_path && !master_connection) {
+				g_warning ("Cannot unregister client %s: master_connection is NULL", name);
+			}
+			
+			/* Release our reference. This will destroy the object,
+			 * which will trigger our weak ref callback (client_destroyed) to clean up. */
+			g_object_unref (client);
+		}
+	}
+	
+	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+}
+
 #define GEOCLUE_MASTER_PATH "/org/freedesktop/Geoclue/Master/client"
-static gboolean
-gc_iface_master_create (GcMaster    *master,
-			const char **object_path,
-			GError     **error)
+static void
+gc_iface_master_create (GcMaster              *master,
+			DBusGMethodInvocation *context)
 {
 	static guint32 serial = 0;
 	GcMasterClient *client;
 	char *path;
+	char *sender;
 
 	path = g_strdup_printf ("%s%d", GEOCLUE_MASTER_PATH, serial++);
 	client = g_object_new (GC_TYPE_MASTER_CLIENT, NULL);
+	
+	/* Get and store the sender's unique name and object path */
+	sender = dbus_g_method_get_sender (context);
+	gc_master_client_set_sender (client, sender);
+	gc_master_client_set_object_path (client, path);
+	g_free (sender);
+	
+	/* Register the client object on D-Bus */
 	dbus_g_connection_register_g_object (master->connection, path,
 					     G_OBJECT (client));
 	
-	if (object_path) {
-		*object_path = path;
-	}
-	return TRUE;
+	/* Track the client with a weak reference */
+	add_client (client);
+	
+	/* Return the object path */
+	dbus_g_method_return (context, path);
+	g_free (path);
 }
 
 static void
@@ -167,6 +272,7 @@ static void
 gc_master_init (GcMaster *master)
 {
 	GError *error = NULL;
+	DBusConnection *dbus_conn;
 	
 	
 	master->connection = dbus_g_bus_get (GEOCLUE_DBUS_BUS, &error);
@@ -174,7 +280,20 @@ gc_master_init (GcMaster *master)
 		g_warning ("Could not get %s: %s", GEOCLUE_DBUS_BUS, 
 			   error->message);
 		g_error_free (error);
+		return;
 	}
+	
+	/* Store connection globally for client cleanup */
+	master_connection = master->connection;
+	
+	/* Add filter for NameOwnerChanged signals to detect client disconnections */
+	dbus_conn = dbus_g_connection_get_connection (master->connection);
+	dbus_connection_add_filter (dbus_conn, name_owner_changed_filter, master, NULL);
+	
+	/* Subscribe to NameOwnerChanged signals */
+	dbus_bus_add_match (dbus_conn,
+	                    "type='signal',interface='" DBUS_INTERFACE_DBUS "',member='NameOwnerChanged'",
+	                    NULL);
 	
 	master->connectivity = geoclue_connectivity_new ();
 
